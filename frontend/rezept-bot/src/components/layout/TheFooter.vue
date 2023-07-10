@@ -1,11 +1,18 @@
-
 <template>
-    <h2>Recipe Footer</h2>
+  <h2 class="sfooter"></h2>
 </template>
 
-<script >
-
+<script>
+export default {
+  // Component logic goes here
+}
 </script>
-<style scoped>
 
+<style scoped>
+.footer {
+  background-color: #333;
+  color: #fff;
+  padding: 10px;
+  text-align: center;
+}
 </style>

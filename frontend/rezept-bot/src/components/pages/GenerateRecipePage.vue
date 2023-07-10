@@ -1,28 +1,36 @@
 <template>
-  <h1>recipe page</h1>
-  <form @submit.prevent="submitForm">
-    <div>
-      <label for="ingredients">Ihre Zutaten</label>
-      <input id="ingredients" name="ingredients" type="text" v-model.trim="ingredients">
+  <RecipeOk v-if="isOk" @reload="reloadForm"></RecipeOk>
+  <div v-else>
+  <h1>Zutaten Eingeben</h1>
+  <form @submit.prevent="submitForm" v-if="formEmpty">
+    <div class="form-control" :class="{invalid: validity === 'invalid'}">
+      <label for="ingredients"></label>
+      <input id="ingredients" name="ingredients" type="text" v-model.trim="ingredients" @blur="validateInput">
+      <p v-if="validity === 'invalid'">Bitte Zutaten eingeben!</p>
     </div>
     <div>
-      <button>Generiere Rezept</button>
+      <button :disabled="validity === 'invalid'">Generiere Rezept</button>
     </div>
   </form>
-  <div class="text-center" v-if='isLoading'>
-    <p>Bitte warten</p>
-  </div>
   <div v-else>
-    <RecipeCard :title="title" :preparation="preparation" :zutaten="zutaten"></RecipeCard>
+      <div v-if="isLoading" class="loading-spinner">
+        <div class="spinner"></div>
+    </div>
+    <div v-else>
+      <RecipeCard :title="title" :preparation="preparation" :zutaten="zutaten"></RecipeCard>
+      <button @click="saveRecipe">Rezept Speichern</button>
+      <button @click="reloadForm">Neu Generieren</button>
+    </div>
   </div>
-
+  </div>
 </template>
 <script>
 import RecipeCard from "@/components/recipe/RecipeCard.vue";
+import RecipeOk from "@/components/recipe/RecipeOk.vue";
 import axios from "axios";
 
 export default {
-  components: {RecipeCard},
+  components: {RecipeCard, RecipeOk},
   data() {
     return {
       ingredients: "",
@@ -31,11 +39,19 @@ export default {
       preparation: "",
       isLoading: false,
       text: "",
+      formEmpty: true,
+      isOk: false,
+      validity : 'pending',
     }
   },
   methods: {
     async submitForm() {
+      if (this.validity === 'invalid' || this.ingredients === '') {
+        this.validity = 'invalid'
+        return;
+      }
       this.isLoading = true;
+      this.formEmpty = false;
       const {Configuration, OpenAIApi} = require("openai");
 
       const configuration = new Configuration({
@@ -59,33 +75,118 @@ export default {
 
       const regexTitle = /^.+"/;
       const matchTitle = text.match(regexTitle);
-      this.title = matchTitle ? matchTitle[0].replace(/\[ "|\\"" ]/, "").replace(/"$/, "") : null;
+      this.title = matchTitle ? matchTitle[0].replace(/\[ "|\\"" ]/, "").replace(/"$/, "").trim() : null;
 
       const regexZutaten = /(Zutaten[\s\S]*Zubereitung:)/;
       const matchZutaten = text.match(regexZutaten);
-      this.zutaten = matchZutaten ? matchZutaten[1].replace(/\n/g, " ").replace(/Zubereitung:/, "") : null;
+      this.zutaten = matchZutaten ? matchZutaten[1].replace(/\n/g, " ").replace(/Zubereitung:/, "").trim() : null;
 
       const regexPrep = /(Zubereitung[\s\S]*)/;
       const matchPrep = text.match(regexPrep);
-      this.preparation = matchPrep ? matchPrep[1].replace(/\n/g, " ") : null;
+      this.preparation = matchPrep ? matchPrep[1].replace(/\n/g, " ").trim() : null;
 
-      await axios.post("https://backend.ddev.site/api/save", {
-        "title": this.title,
-        "ingredients": this.zutaten,
-        "preparation": this.preparation
-
-      })  .then(function (response) {
+    },
+    saveRecipe() {
+      const dataSend = {
+        title: this.title,
+        ingredients: this.zutaten,
+        preparation: this.preparation
+      }
+      console.log(dataSend)
+      axios.defaults.baseURL = 'http://localhost:8080/';
+      axios.post("api/save", dataSend).then(function (response) {
         console.log(response);
       })
           .catch(function (error) {
             console.log(error);
           });
+      this.isOk = true;
 
+    },
+    reloadForm() {
+      this.formEmpty = !this.formEmpty;
+      this.ingredients = "";
+      this.isOk = false;
+    },
+    validateInput(){
+      if (this.ingredients === "") {
+        this.validity = 'invalid';
+      } else {
+        this.validity = 'valid';
+      }
     }
   }
 }
 
 </script>
-<style scoped>
 
+
+<style scoped>
+.form-control.invalid input{
+  border-color: red;
+}
+.form-control.invalid label{
+  color: red;
+}
+h1 {
+  color: #333;
+}
+
+form {
+  margin-bottom: 20px;
+}
+
+label {
+  display: block;
+  margin-bottom: 10px;
+}
+
+input {
+  width: 100%;
+  padding: 8px;
+  font-size: 16px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+
+button {
+  padding: 10px 20px;
+  font-size: 16px;
+  background-color: #333;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.text-center {
+  text-align: center;
+}
+
+p {
+  font-size: 18px;
+}
+.loading-spinner {
+  position: relative;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #333;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto;
+  margin-bottom: 20px;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
 </style>
